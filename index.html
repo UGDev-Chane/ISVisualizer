@@ -1,4 +1,4 @@
-<!-- VERSION: 1.0.2 -->
+<!-- VERSION: 1.0.3 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,7 +48,7 @@
   }
   #version-label {
     position: absolute; bottom: 12px; left: 12px;
-    color: #3a2060; font-size: 10px; letter-spacing: 1px;
+    color: #ffffff; font-size: 10px; letter-spacing: 1px;
     z-index: 10; pointer-events: none;
   }
 </style>
@@ -70,7 +70,7 @@
     <p style="font-size:11px;color:#4a3060;">♫ Questing Realms — Chris Huelsbeck</p>
   </div>
   <div id="track-label">♫ QUESTING REALMS — CHRIS HUELSBECK · INTERSTELLAR SENTINEL OST</div>
-  <div id="version-label">v1.0.2</div>
+  <div id="version-label">v1.0.3</div>
 </div>
 
 <script>
@@ -372,9 +372,15 @@ canvas.addEventListener('click', e => {
 
 // --- Start ---
 document.getElementById('start-btn').addEventListener('click', () => {
-  document.getElementById('start-screen').style.display='none';
-  audio.play().catch(e => console.warn('Audio play failed:', e));
-  initAudio();
+  document.getElementById('start-screen').style.display = 'none';
+  // Play audio directly — completely independent of Web Audio API
+  audio.volume = 1.0;
+  const playPromise = audio.play();
+  if (playPromise !== undefined) {
+    playPromise.catch(e => console.warn('Audio play failed:', e));
+  }
+  // Hook up beat detection separately — if it fails, music still plays
+  setTimeout(() => initAudio(), 100);
   lastTime = performance.now();
   requestAnimationFrame(loop);
 });
