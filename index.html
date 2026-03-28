@@ -53,7 +53,7 @@
 <div id="wrap">
   <canvas id="c"></canvas>
 
-  <audio id="audio" loop>
+  <audio id="audio" loop crossorigin="anonymous">
     <source src="media/Interstellar_Sentinel_Soundtrack_14QuestingRealms.mp3" type="audio/mpeg">
   </audio>
 
@@ -87,17 +87,20 @@ let prevBass = 0, beatThreshold = 0, beatCooldown = 0;
 const audio = document.getElementById('audio');
 
 function initAudio() {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  // Only set crossOrigin for Web Audio API when needed (not on same-origin GitHub Pages)
-  if (!isGitHubPages) audio.crossOrigin = 'anonymous';
-  const src = audioCtx.createMediaElementSource(audio);
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = audioCtx.createMediaElementSource(audio);
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0.8;
   bufferLength = analyser.frequencyBinCount;
   dataArray = new Uint8Array(bufferLength);
-  src.connect(analyser);
-  analyser.connect(audioCtx.destination);
+    src.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  } catch(e) {
+    console.warn('Web Audio API failed, playing without visualization:', e);
+    audioCtx = null;
+  }
 }
 
 function analyzeAudio() {
