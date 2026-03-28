@@ -1,4 +1,3 @@
-<!-- VERSION: 1.0.4 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +9,7 @@
   body { background: #02000a; overflow: hidden; font-family: 'Courier New', monospace; width: 100%; height: 100vh; }
   #wrap { position: relative; width: 100%; height: 100vh; }
   canvas { display: block; width: 100%; height: 100%; }
+
   #ui {
     position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
     display: flex; gap: 16px; align-items: center; z-index: 10; pointer-events: none;
@@ -23,13 +23,14 @@
   #super-box { border-color: #ff3f9f; color: #ff9fe0; display: none; align-items: center; gap: 8px; }
   #super-bar-wrap { width: 100px; height: 6px; background: #1a001a; border: 1px solid #ff3f9f; border-radius: 4px; overflow: hidden; }
   #super-bar { height: 100%; width: 100%; background: linear-gradient(90deg,#ff3f9f,#ff9f3f); }
+
   #start-screen {
     position: absolute; inset: 0; background: rgba(2,0,10,0.92);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 20; gap: 20px;
   }
   #start-screen h1 {
-    color: #c080ff; font-size: clamp(18px,4vw,36px); letter-spacing: 4px;
+    color: #c080ff; font-size: clamp(18px, 4vw, 36px); letter-spacing: 4px;
     text-transform: uppercase; text-shadow: 0 0 30px #7f3fff;
     text-align: center; padding: 0 20px;
   }
@@ -39,7 +40,6 @@
     padding: 12px 36px; font-family: 'Courier New', monospace;
     font-size: 14px; letter-spacing: 3px; text-transform: uppercase;
     cursor: pointer; transition: all 0.2s;
-    position: relative; z-index: 30;
   }
   #start-btn:hover { background: #7f3fff33; box-shadow: 0 0 20px #7f3fff; }
   #track-label {
@@ -47,35 +47,32 @@
     color: #6040a0; font-size: 11px; letter-spacing: 2px; white-space: nowrap;
     z-index: 10; pointer-events: none;
   }
-  #version-label {
-    position: absolute; bottom: 12px; left: 12px;
-    color: #ffffff; font-size: 10px; letter-spacing: 1px;
-    z-index: 10; pointer-events: none;
-  }
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
-  <audio id="audio" loop>
+
+  <audio id="audio" loop crossorigin="anonymous">
     <source src="media/Interstellar_Sentinel_Soundtrack_14QuestingRealms.mp3" type="audio/mpeg">
   </audio>
+
   <div id="ui">
     <div class="ui-box">SOUL GEMS: <span id="score">0</span></div>
     <div class="ui-box" id="super-box">⚡ SUPER <div id="super-bar-wrap"><div id="super-bar"></div></div></div>
   </div>
+
   <div id="start-screen">
     <h1>INTERSTELLAR SENTINEL</h1>
     <p>COLLECT POWER-UPS · UNLEASH THE SUPER VISUALIZER</p>
     <button id="start-btn">ENGAGE</button>
     <p style="font-size:11px;color:#4a3060;">♫ Questing Realms — Chris Huelsbeck</p>
   </div>
+
   <div id="track-label">♫ QUESTING REALMS — CHRIS HUELSBECK · INTERSTELLAR SENTINEL OST</div>
-  <div id="version-label">v1.0.4</div>
 </div>
 
 <script>
-// --- Canvas ---
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let W, H;
@@ -83,76 +80,83 @@ function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = c
 resize();
 window.addEventListener('resize', resize);
 
-// --- Audio ---
+// --- Web Audio Setup ---
+let audioCtx, analyser, dataArray, bufferLength;
+let bassVal = 0, midVal = 0, highVal = 0, beatVal = 0;
+let prevBass = 0, beatThreshold = 0, beatCooldown = 0;
 const audio = document.getElementById('audio');
-let audioCtx = null, analyser = null, dataArray = null, bufferLength = 0;
-let bassVal = 0, midVal = 0, highVal = 0, beatVal = 0, prevBass = 0, beatCooldown = 0;
 
 function initAudio() {
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.8;
-    bufferLength = analyser.frequencyBinCount;
-    dataArray = new Uint8Array(bufferLength);
-    const src = audioCtx.createMediaElementSource(audio);
-    src.connect(analyser);
-    analyser.connect(audioCtx.destination);
-  } catch(e) {
-    console.warn('Web Audio init failed:', e);
-    audioCtx = null; analyser = null;
-  }
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = audioCtx.createMediaElementSource(audio);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.8;
+  bufferLength = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufferLength);
+  src.connect(analyser);
+  analyser.connect(audioCtx.destination);
 }
 
 function analyzeAudio() {
   if (!analyser) return;
   analyser.getByteFrequencyData(dataArray);
+
   const nyquist = audioCtx.sampleRate / 2;
   const binHz = nyquist / bufferLength;
+
+  // Bass: 20–250hz, Mid: 250–4000hz, High: 4000–16000hz
   const bassEnd = Math.floor(250 / binHz);
-  const midEnd  = Math.floor(4000 / binHz);
+  const midEnd = Math.floor(4000 / binHz);
   const highEnd = Math.floor(16000 / binHz);
+
   let bass = 0, mid = 0, high = 0;
   for (let i = 1; i < bassEnd; i++) bass += dataArray[i];
   for (let i = bassEnd; i < midEnd; i++) mid += dataArray[i];
   for (let i = midEnd; i < highEnd; i++) high += dataArray[i];
+
   bassVal = (bass / bassEnd) / 255;
-  midVal  = (mid / (midEnd - bassEnd)) / 255;
+  midVal = (mid / (midEnd - bassEnd)) / 255;
   highVal = (high / (highEnd - midEnd)) / 255;
+
+  // Beat detection — sharp bass transient
   beatCooldown = Math.max(0, beatCooldown - 1);
-  const delta = bassVal - prevBass;
-  if (delta > 0.08 && bassVal > 0.35 && beatCooldown === 0) {
-    beatVal = 1.0; beatCooldown = 12;
+  const bassDelta = bassVal - prevBass;
+  if (bassDelta > 0.08 && bassVal > 0.35 && beatCooldown === 0) {
+    beatVal = 1.0;
+    beatCooldown = 12; // ~200ms at 60fps
+    // On-beat spawns
     beams.push(new Beam(W/2, H/2, superActive));
-    if (superActive) for (let i = 0; i < 4; i++)
-      particles.push(new Particle(W/2+rand(-60,60), H/2+rand(-60,60), PURPLES[randInt(0,6)], true));
+    if (superActive) {
+      for (let i = 0; i < 4; i++)
+        particles.push(new Particle(W/2+rand(-60,60), H/2+rand(-60,60), PURPLES[randInt(0,6)], true));
+    }
   }
-  beatVal *= 0.85;
+  beatVal *= 0.85; // decay
   prevBass = bassVal;
 }
 
-// --- Sprites ---
-const isGitHub = window.location.hostname === 'ugdev-chane.github.io';
-const BASE = isGitHub
+// --- Sprite Sheet ---
+const BASE = window.location.hostname === 'ugdev-chane.github.io'
   ? 'media/'
   : 'https://raw.githubusercontent.com/UGDev-Chane/ISVisualizer/main/media/';
 
 const demonSprite = new Image();
-if (!isGitHub) demonSprite.crossOrigin = 'anonymous';
+demonSprite.crossOrigin = 'anonymous';
 demonSprite.src = BASE + 'LesserDemon_512x512.png';
-let demonReady = false;
-demonSprite.onload = () => { demonReady = true; console.log('Demon sprite loaded'); };
-demonSprite.onerror = () => console.warn('Demon sprite failed to load');
+let demonSpriteReady = false;
+demonSprite.onload = () => demonSpriteReady = true;
+demonSprite.onerror = () => console.warn('Demon sprite not found - using fallback');
 
-const soulSprite = new Image();
-if (!isGitHub) soulSprite.crossOrigin = 'anonymous';
-soulSprite.src = BASE + '0StarCollectionBits_BR.png';
-let soulReady = false;
-soulSprite.onload = () => { soulReady = true; console.log('Soul sprite loaded'); };
-soulSprite.onerror = () => console.warn('Soul sprite failed to load');
+const soulBitSprite = new Image();
+soulBitSprite.crossOrigin = 'anonymous';
+soulBitSprite.src = BASE + '0StarCollectionBits_BR.png';
+let soulBitReady = false;
+soulBitSprite.onload = () => soulBitReady = true;
+soulBitSprite.onerror = () => console.warn('Soul bit sprite not found - using fallback');
 
-const SPRITE_COLS = 2, SPRITE_FRAMES = 4, FRAME_W = 256, FRAME_H = 256;
+const SPRITE_COLS = 2, SPRITE_ROWS = 2, SPRITE_FRAMES = 4;
+const FRAME_W = 256, FRAME_H = 256;
 const SOUL_COLS = 4, SOUL_ROWS = 4, SOUL_FRAMES = 16;
 
 // --- State ---
@@ -164,207 +168,256 @@ let vortexAngle = 0, tick = 0, lastPowerUpTime = 0, nextInterval = 3000, lastTim
 const rand = (a, b) => Math.random() * (b - a) + a;
 const randInt = (a, b) => Math.floor(rand(a, b));
 const PURPLES = ['#7f3fff','#c060ff','#ff3fff','#3f9fff','#ff9f3f','#3fffcf'];
+const DEMON_COLS = ['#ff2040','#ff6020','#c020ff','#ff2080'];
 
-// --- PowerUp ---
+// --- Classes ---
 class PowerUp {
   constructor() {
     const m = 90;
     this.x = rand(m, W-m); this.y = rand(m, H-m);
-    this.r = 28; this.phase = rand(0, Math.PI*2); this.glowPulse = rand(0, Math.PI*2);
+    this.r = 28; this.phase = rand(0, Math.PI*2);
     this.color = PURPLES[randInt(0, PURPLES.length)];
     this.alive = true; this.age = 0; this.lifespan = 7000;
     this.frame = 0; this.frameTick = 0; this.frameSpeed = 4;
+    // Soul bit sprite frame size - detect from image once loaded
+    this.glowPulse = rand(0, Math.PI*2);
   }
   update(dt) {
     this.age += dt; this.phase += 0.08; this.glowPulse += 0.06;
     if (this.age > this.lifespan) this.alive = false;
-    if (++this.frameTick >= this.frameSpeed) { this.frame = (this.frame + 1) % SOUL_FRAMES; this.frameTick = 0; }
+    this.frameTick++;
+    if (this.frameTick >= this.frameSpeed) {
+      this.frame = (this.frame + 1) % SOUL_FRAMES;
+      this.frameTick = 0;
+    }
   }
   draw() {
     const alpha = this.age > this.lifespan-900 ? Math.max(0,(this.lifespan-this.age)/900) : 1;
-    const pulse = 1 + Math.sin(this.glowPulse)*0.2 + bassVal*0.4;
-    ctx.save(); ctx.globalAlpha = alpha;
-    // Glow
-    const g = ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*3*pulse);
-    g.addColorStop(0, this.color+'aa'); g.addColorStop(0.4, this.color+'44'); g.addColorStop(1, this.color+'00');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(this.x,this.y,this.r*3*pulse,0,Math.PI*2); ctx.fill();
-    if (soulReady) {
-      const fw = soulSprite.width / SOUL_COLS, fh = soulSprite.height / SOUL_ROWS;
-      const col = this.frame % SOUL_COLS, row = Math.floor(this.frame / SOUL_COLS);
-      const sz = 80 * pulse;
-      ctx.shadowColor = this.color; ctx.shadowBlur = 24;
-      ctx.drawImage(soulSprite, col*fw, row*fh, fw, fh, this.x-sz/2, this.y-sz/2, sz, sz);
+    const pulse = 1 + Math.sin(this.glowPulse) * 0.2 + bassVal * 0.4;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Outer glow rings
+    const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 3 * pulse);
+    g.addColorStop(0, this.color + 'aa');
+    g.addColorStop(0.4, this.color + '44');
+    g.addColorStop(1, this.color + '00');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.r * 3 * pulse, 0, Math.PI*2); ctx.fill();
+
+    if (soulBitReady) {
+      const fw = soulBitSprite.width / SOUL_COLS;
+      const fh = soulBitSprite.height / SOUL_ROWS;
+      const col = this.frame % SOUL_COLS;
+      const row = Math.floor(this.frame / SOUL_COLS);
+      const drawSize = 80 * pulse;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 24;
+      ctx.drawImage(soulBitSprite, col*fw, row*fh, fw, fh,
+        this.x - drawSize/2, this.y - drawSize/2, drawSize, drawSize);
     } else {
+      // Fallback star shape
+      ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+      ctx.shadowColor = this.color; ctx.shadowBlur = 16;
       ctx.translate(this.x, this.y); ctx.rotate(this.phase);
-      ctx.strokeStyle = this.color; ctx.lineWidth = 2; ctx.shadowColor = this.color; ctx.shadowBlur = 16;
       ctx.beginPath();
-      for (let i = 0; i < 8; i++) { const a=(i/8)*Math.PI*2, l=i%2===0?this.r:this.r*0.45; i===0?ctx.moveTo(Math.cos(a)*l,Math.sin(a)*l):ctx.lineTo(Math.cos(a)*l,Math.sin(a)*l); }
+      for (let i = 0; i < 8; i++) {
+        const a = (i/8)*Math.PI*2, len = i%2===0 ? this.r : this.r*0.45;
+        i===0 ? ctx.moveTo(Math.cos(a)*len, Math.sin(a)*len) : ctx.lineTo(Math.cos(a)*len, Math.sin(a)*len);
+      }
       ctx.closePath(); ctx.stroke();
       ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
     }
     ctx.restore();
   }
-  hit(mx,my) { return Math.hypot(mx-this.x, my-this.y) < this.r+20; }
+  hit(mx,my){return Math.hypot(mx-this.x,my-this.y)<this.r+20;}
 }
 
-// --- Particle ---
 class Particle {
-  constructor(x,y,col,big) {
-    this.x=x; this.y=y;
-    const a=rand(0,Math.PI*2), spd=big?rand(3,12):rand(1,6);
-    this.vx=Math.cos(a)*spd; this.vy=Math.sin(a)*spd;
-    this.life=1; this.decay=rand(0.012,0.035);
-    this.r=big?rand(2,7):rand(1,4); this.color=col;
+  constructor(x,y,col,big){
+    this.x=x;this.y=y;
+    const a=rand(0,Math.PI*2),spd=big?rand(3,12):rand(1,6);
+    this.vx=Math.cos(a)*spd;this.vy=Math.sin(a)*spd;
+    this.life=1;this.decay=rand(0.012,0.035);
+    this.r=big?rand(2,7):rand(1,4);this.color=col;this.big=big;
   }
-  update() { this.x+=this.vx; this.y+=this.vy; this.vy+=0.06; this.vx*=0.97; this.vy*=0.97; this.life-=this.decay; }
-  draw() {
-    ctx.save(); ctx.globalAlpha=Math.max(0,this.life);
-    ctx.shadowColor=this.color; ctx.shadowBlur=12;
-    ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill();
+  update(){this.x+=this.vx;this.y+=this.vy;this.vy+=0.06;this.vx*=0.97;this.vy*=0.97;this.life-=this.decay;}
+  draw(){
+    ctx.save();ctx.globalAlpha=Math.max(0,this.life);
+    ctx.shadowColor=this.color;ctx.shadowBlur=this.big?18:8;
+    ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
 }
 
-// --- Beam ---
 class Beam {
-  constructor(cx,cy,big) {
-    this.cx=cx; this.cy=cy; this.angle=rand(0,Math.PI*2);
+  constructor(cx,cy,big){
+    this.cx=cx;this.cy=cy;this.angle=rand(0,Math.PI*2);
     this.length=big?rand(200,Math.max(W,H)):rand(80,260);
     this.width=big?rand(1.5,4):rand(0.5,2);
     this.color=PURPLES[randInt(0,PURPLES.length)];
-    this.life=1; this.decay=big?rand(0.018,0.04):rand(0.03,0.07);
+    this.life=1;this.decay=big?rand(0.018,0.04):rand(0.03,0.07);
   }
-  update() { this.life-=this.decay; }
-  draw() {
-    ctx.save(); ctx.globalAlpha=Math.max(0,this.life)*0.9;
-    ctx.strokeStyle=this.color; ctx.lineWidth=this.width;
-    ctx.shadowColor=this.color; ctx.shadowBlur=12;
-    ctx.beginPath(); ctx.moveTo(this.cx,this.cy);
-    ctx.lineTo(this.cx+Math.cos(this.angle)*this.length, this.cy+Math.sin(this.angle)*this.length);
-    ctx.stroke(); ctx.restore();
+  update(){this.life-=this.decay;}
+  draw(){
+    ctx.save();ctx.globalAlpha=Math.max(0,this.life)*0.9;
+    ctx.strokeStyle=this.color;ctx.lineWidth=this.width;
+    ctx.shadowColor=this.color;ctx.shadowBlur=12;
+    ctx.beginPath();ctx.moveTo(this.cx,this.cy);
+    ctx.lineTo(this.cx+Math.cos(this.angle)*this.length,this.cy+Math.sin(this.angle)*this.length);
+    ctx.stroke();ctx.restore();
   }
 }
 
-// --- Demon ---
 class Demon {
   constructor() {
-    this.fromLeft = randInt(0,2) === 0;
-    this.x = this.fromLeft ? rand(-80,-40) : rand(W+40,W+80);
-    this.y = rand(H*0.1, H*0.9);
+    this.fromLeft = randInt(0, 2) === 0;
+    this.x = this.fromLeft ? rand(-80, -40) : rand(W + 40, W + 80);
+    this.y = rand(H * 0.1, H * 0.9);
     this.dir = this.fromLeft ? 1 : -1;
-    this.spd = rand(0.5,1.5); this.scale = rand(0.5,1.1);
-    this.life = 1; this.decay = rand(0.003,0.007);
-    this.wobble = rand(0,Math.PI*2);
-    this.frame = 0; this.frameTick = 0; this.frameSpeed = randInt(6,10);
+    this.spd = rand(0.5, 1.5);
+    this.scale = rand(0.5, 1.1);
+    this.life = 1; this.decay = rand(0.003, 0.007);
+    this.wobble = rand(0, Math.PI * 2);
+    this.frame = 0; this.frameTick = 0;
+    this.frameSpeed = randInt(6, 10); // ticks per frame
     this.alive = true;
   }
   update() {
-    this.x += this.dir * (this.spd + bassVal*2);
-    this.wobble += 0.03; this.life -= this.decay;
-    if (++this.frameTick >= this.frameSpeed) { this.frame = (this.frame+1) % SPRITE_FRAMES; this.frameTick = 0; }
-    if (this.life <= 0 || this.x < -300 || this.x > W+300) this.alive = false;
+    this.x += this.dir * (this.spd + bassVal * 2);
+    this.wobble += 0.03;
+    this.life -= this.decay;
+    // Animate frames
+    this.frameTick++;
+    if (this.frameTick >= this.frameSpeed) {
+      this.frame = (this.frame + 1) % SPRITE_FRAMES;
+      this.frameTick = 0;
+    }
+    if (this.life <= 0 || this.x < -200 || this.x > W + 200) this.alive = false;
   }
   draw() {
-    const wobbleY = Math.sin(this.wobble) * 6 * (1 + midVal);
+    if (!demonSpriteReady) {
+      // Fallback: colored shape so we can verify spawning
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.life) * 0.85;
+      ctx.translate(this.x, this.y + Math.sin(this.wobble) * 8);
+      if (this.fromLeft) ctx.scale(-1, 1);
+      ctx.fillStyle = '#ff2040';
+      ctx.shadowColor = '#ff2040';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.moveTo(0, -30); ctx.lineTo(20, 20); ctx.lineTo(-20, 20);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      return;
+    }
+    const col = this.frame % SPRITE_COLS;
+    const row = Math.floor(this.frame / SPRITE_COLS);
+    const sx = col * FRAME_W, sy = row * FRAME_H;
     const drawW = FRAME_W * this.scale, drawH = FRAME_H * this.scale;
+    const wobbleY = Math.sin(this.wobble) * 6 * (1 + midVal);
+
     ctx.save();
     ctx.globalAlpha = Math.max(0, this.life) * 0.92;
     ctx.translate(this.x, this.y + wobbleY);
-    if (this.fromLeft) ctx.scale(-1, 1); // flip to face center
-    if (demonReady) {
-      const col = this.frame % SPRITE_COLS;
-      const row = Math.floor(this.frame / SPRITE_COLS);
-      ctx.drawImage(demonSprite, col*FRAME_W, row*FRAME_H, FRAME_W, FRAME_H, -drawW/2, -drawH/2, drawW, drawH);
-    } else {
-      // Fallback red triangle
-      ctx.fillStyle = '#ff2040'; ctx.shadowColor = '#ff2040'; ctx.shadowBlur = 20;
-      ctx.beginPath(); ctx.moveTo(0,-30); ctx.lineTo(20,20); ctx.lineTo(-20,20); ctx.closePath(); ctx.fill();
+
+    // Flip left-coming demons so they face center (right)
+    if (this.fromLeft) {
+      ctx.scale(-1, 1);
     }
+
+    ctx.drawImage(
+      demonSprite,
+      sx, sy, FRAME_W, FRAME_H,
+      -drawW / 2, -drawH / 2, drawW, drawH
+    );
     ctx.restore();
   }
 }
 
 // --- Stars ---
 let stars = [];
-function initStars() { stars = Array.from({length:200}, () => ({x:rand(0,W),y:rand(0,H),r:rand(0.3,2),spd:rand(0.05,0.3),bright:rand(0.3,1)})); }
+function initStars(){stars=Array.from({length:200},()=>({x:rand(0,W),y:rand(0,H),r:rand(0.3,2),spd:rand(0.05,0.3),bright:rand(0.3,1)}));}
 initStars();
-window.addEventListener('resize', initStars);
+window.addEventListener('resize',initStars);
 
-function drawStars() {
-  for (const s of stars) {
-    s.x -= s.spd + highVal*0.5; if (s.x < 0) { s.x = W; s.y = rand(0,H); }
-    ctx.save(); ctx.globalAlpha = s.bright*(0.7+0.3*Math.sin(tick*0.05+s.x));
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r*(1+beatVal*0.5),0,Math.PI*2); ctx.fill(); ctx.restore();
+function drawStars(){
+  for(const s of stars){
+    s.x-=s.spd+(highVal*0.5);if(s.x<0){s.x=W;s.y=rand(0,H);}
+    ctx.save();ctx.globalAlpha=s.bright*(0.7+0.3*Math.sin(tick*0.05+s.x));
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,s.r*(1+beatVal*0.5),0,Math.PI*2);ctx.fill();ctx.restore();
   }
 }
 
-function drawNebula(sup) {
-  const cx=W/2, cy=H/2;
-  if (sup) {
-    for (let i=0; i<3; i++) {
+function drawNebula(sup){
+  const cx=W/2,cy=H/2;
+  if(sup){
+    for(let i=0;i<3;i++){
       const hue=(tick*3+i*120)%360;
       const g=ctx.createRadialGradient(cx,cy,0,cx+Math.cos(tick*0.01+i)*80,cy+Math.sin(tick*0.01+i)*60,Math.max(W,H)*0.7);
-      g.addColorStop(0,`hsla(${hue},100%,50%,${0.1+midVal*0.2})`); g.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      g.addColorStop(0,`hsla(${hue},100%,50%,${0.1+midVal*0.2})`);g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
     }
   } else {
     const g=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*0.6);
-    g.addColorStop(0,`rgba(80,0,160,${0.08+bassVal*0.15})`); g.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    g.addColorStop(0,`rgba(80,0,160,${0.08+bassVal*0.15})`);g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   }
 }
 
-function drawVortex(sup) {
-  const cx=W/2, cy=H/2;
+function drawVortex(sup){
+  const cx=W/2,cy=H/2;
+  // Bass drives vortex size
   const baseR = sup ? 60+80*(bassVal+0.3) : 50+50*bassVal;
-  const rings = sup?10:5;
-  for (let i=rings; i>0; i--) {
-    const r=baseR*(i/rings), a1=vortexAngle+i*0.5, hue=(tick*2+i*30)%360;
-    ctx.save(); ctx.globalAlpha=(i/rings)*(sup?0.9:0.5);
+  const rings=sup?10:5;
+  for(let i=rings;i>0;i--){
+    const r=baseR*(i/rings),a1=vortexAngle+i*0.5;
+    const hue=(tick*2+i*30)%360;
+    ctx.save();ctx.globalAlpha=(i/rings)*(sup?0.9:0.5);
     ctx.strokeStyle=sup?`hsl(${hue},100%,70%)`:PURPLES[i%PURPLES.length];
-    ctx.lineWidth=sup?2.5+midVal*2:1.5+midVal; ctx.shadowColor=ctx.strokeStyle; ctx.shadowBlur=sup?30:12;
-    ctx.beginPath(); ctx.arc(cx,cy,r,a1,a1+Math.PI*1.5); ctx.stroke(); ctx.restore();
+    ctx.lineWidth=sup?2.5+midVal*2:1.5+midVal;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=sup?30:12;
+    ctx.beginPath();ctx.arc(cx,cy,r,a1,a1+Math.PI*1.5);ctx.stroke();ctx.restore();
   }
-  if (beatVal > 0.2) {
-    ctx.save(); ctx.globalAlpha=beatVal*0.8;
+  // Beat pulse ring
+  if(beatVal>0.2){
+    ctx.save();ctx.globalAlpha=beatVal*0.8;
     ctx.strokeStyle=sup?`hsl(${tick*4%360},100%,80%)`:'#c060ff';
-    ctx.lineWidth=3+beatVal*4; ctx.shadowColor=ctx.strokeStyle; ctx.shadowBlur=40;
-    ctx.beginPath(); ctx.arc(cx,cy,baseR*1.5,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    ctx.lineWidth=3+beatVal*4;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=40;
+    ctx.beginPath();ctx.arc(cx,cy,baseR*1.5,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
   }
-  // Frequency bars
-  if (analyser && dataArray) {
-    analyser.getByteFrequencyData(dataArray);
-    const bars=64;
-    for (let i=0; i<bars; i++) {
-      const a=(i/bars)*Math.PI*2;
-      const freq=dataArray[Math.floor(i/bars*bufferLength/4)]/255;
-      const inner=baseR+4, outer=baseR+8+freq*(sup?80:40);
-      ctx.save(); ctx.globalAlpha=0.7*freq;
-      ctx.strokeStyle=sup?`hsl(${(i/bars*360+tick*2)%360},100%,65%)`:PURPLES[i%PURPLES.length];
-      ctx.lineWidth=sup?2.5:1.5; ctx.shadowColor=ctx.strokeStyle; ctx.shadowBlur=10;
-      ctx.beginPath();
-      ctx.moveTo(cx+Math.cos(a)*inner, cy+Math.sin(a)*inner);
-      ctx.lineTo(cx+Math.cos(a)*outer, cy+Math.sin(a)*outer);
-      ctx.stroke(); ctx.restore();
-    }
+  // Frequency bars around vortex
+  const bars = 64;
+  analyser && analyser.getByteFrequencyData(dataArray);
+  for(let i=0;i<bars;i++){
+    const a=(i/bars)*Math.PI*2;
+    const freq=dataArray[Math.floor(i/bars*bufferLength/4)]/255;
+    const inner=baseR+4, outer=baseR+8+freq*(sup?80:40);
+    ctx.save();ctx.globalAlpha=0.7*freq;
+    ctx.strokeStyle=sup?`hsl(${(i/bars*360+tick*2)%360},100%,65%)`:PURPLES[i%PURPLES.length];
+    ctx.lineWidth=sup?2.5:1.5;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=10;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*inner,cy+Math.sin(a)*inner);
+    ctx.lineTo(cx+Math.cos(a)*outer,cy+Math.sin(a)*outer);
+    ctx.stroke();ctx.restore();
   }
   const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,baseR*0.6);
   cg.addColorStop(0,sup?`rgba(255,120,255,${0.4+bassVal*0.4})`:`rgba(100,0,180,${0.3+bassVal*0.3})`);
   cg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.save(); ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(cx,cy,baseR*0.6,0,Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.save();ctx.fillStyle=cg;ctx.beginPath();ctx.arc(cx,cy,baseR*0.6,0,Math.PI*2);ctx.fill();ctx.restore();
 }
 
 // --- Click ---
-canvas.addEventListener('click', e => {
+canvas.addEventListener('click',e=>{
   const r=canvas.getBoundingClientRect();
-  const mx=(e.clientX-r.left)*(W/r.width), my=(e.clientY-r.top)*(H/r.height);
-  for (let i=powerUps.length-1; i>=0; i--) {
-    if (powerUps[i].hit(mx,my)) {
+  const mx=(e.clientX-r.left)*(W/r.width),my=(e.clientY-r.top)*(H/r.height);
+  for(let i=powerUps.length-1;i>=0;i--){
+    if(powerUps[i].hit(mx,my)){
       const p=powerUps.splice(i,1)[0];
-      score++; document.getElementById('score').textContent=score;
-      for (let j=0;j<35;j++) particles.push(new Particle(p.x,p.y,PURPLES[randInt(0,PURPLES.length)],true));
-      for (let j=0;j<14;j++) beams.push(new Beam(p.x,p.y,true));
-      superActive=true; superTimer=SUPER_DUR;
+      score++;document.getElementById('score').textContent=score;
+      for(let j=0;j<35;j++) particles.push(new Particle(p.x,p.y,PURPLES[randInt(0,PURPLES.length)],true));
+      for(let j=0;j<14;j++) beams.push(new Beam(p.x,p.y,true));
+      superActive=true;superTimer=SUPER_DUR;
       document.getElementById('super-box').style.display='flex';
       break;
     }
@@ -372,55 +425,56 @@ canvas.addEventListener('click', e => {
 });
 
 // --- Start ---
-document.getElementById('start-btn').addEventListener('click', () => {
-  document.getElementById('start-screen').style.display = 'none';
-  // Play audio directly — completely independent of Web Audio API
-  audio.volume = 1.0;
-  const playPromise = audio.play();
-  if (playPromise !== undefined) {
-    playPromise.catch(e => console.warn('Audio play failed:', e));
-  }
-  // Hook up beat detection separately — if it fails, music still plays
-  setTimeout(() => initAudio(), 100);
-  lastTime = performance.now();
+document.getElementById('start-btn').addEventListener('click',()=>{
+  document.getElementById('start-screen').style.display='none';
+  initAudio();
+  audio.play().catch(e=>console.warn('Audio play failed:',e));
+  lastTime=performance.now();
   requestAnimationFrame(loop);
 });
 
 // --- Loop ---
-function loop(now) {
+function loop(now){
   requestAnimationFrame(loop);
-  const dt = Math.min(now-lastTime, 100);
-  lastTime = now; tick++;
+  const dt=Math.min(now-lastTime,100);
+  lastTime=now;
+  tick++;
 
   analyzeAudio();
 
-  if (superActive) { superTimer-=dt; if(superTimer<=0){superActive=false;superTimer=0;document.getElementById('super-box').style.display='none';} }
+  // Super timer
+  if(superActive){superTimer-=dt;if(superTimer<=0){superActive=false;superTimer=0;document.getElementById('super-box').style.display='none';}}
   document.getElementById('super-bar').style.width=(Math.max(0,superTimer)/SUPER_DUR*100)+'%';
 
-  if (now-lastPowerUpTime > nextInterval) { powerUps.push(new PowerUp()); lastPowerUpTime=now; nextInterval=rand(2500,5000); }
+  // Power-up spawn
+  if(now-lastPowerUpTime>nextInterval){powerUps.push(new PowerUp());lastPowerUpTime=now;nextInterval=rand(2500,5000);}
 
-  if (superActive && tick%16===0) demons.push(new Demon());
-  else if (!superActive && tick%45===0) demons.push(new Demon());
+  // Demon spawn — always spawn on timer, boost rate with mid energy
+  if (superActive && tick % 16 === 0) demons.push(new Demon());
+  else if (!superActive && tick % 45 === 0) demons.push(new Demon());
 
-  if (superActive && highVal>0.4 && tick%6===0) beams.push(new Beam(W/2,H/2,true));
+  // Extra super beams on high energy
+  if(superActive&&highVal>0.4&&tick%6===0) beams.push(new Beam(W/2,H/2,true));
 
-  vortexAngle += 0.015 + bassVal*0.06 + (superActive?0.03:0);
+  vortexAngle+=0.015+bassVal*0.06+(superActive?0.03:0);
 
+  // Draw
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#02000a'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#02000a';ctx.fillRect(0,0,W,H);
   drawStars();
   drawNebula(superActive);
-  beams=beams.filter(b=>b.life>0); beams.forEach(b=>{b.update();b.draw();});
+  beams=beams.filter(b=>b.life>0);beams.forEach(b=>{b.update();b.draw();});
   drawVortex(superActive);
-  demons=demons.filter(d=>d.alive); demons.forEach(d=>{d.update();d.draw();});
-  particles=particles.filter(p=>p.life>0); particles.forEach(p=>{p.update();p.draw();});
-  powerUps=powerUps.filter(p=>p.alive); powerUps.forEach(p=>{p.update(dt);p.draw();});
+  demons=demons.filter(d=>d.alive);demons.forEach(d=>{d.update();d.draw();});
+  particles=particles.filter(p=>p.life>0);particles.forEach(p=>{p.update();p.draw();});
+  powerUps=powerUps.filter(p=>p.alive);powerUps.forEach(p=>{p.update(dt);p.draw();});
 
+  // Title
   ctx.save();
   ctx.globalAlpha=superActive?0.5+0.5*Math.sin(tick*0.15):0.7;
   ctx.fillStyle=superActive?`hsl(${tick*4%360},100%,75%)`:'#c080ff';
   ctx.font=`bold ${superActive?22:18}px 'Courier New'`;
-  ctx.textAlign='center'; ctx.shadowColor=superActive?'#ff40ff':'#7f3fff'; ctx.shadowBlur=superActive?30:12;
+  ctx.textAlign='center';ctx.shadowColor=superActive?'#ff40ff':'#7f3fff';ctx.shadowBlur=superActive?30:12;
   ctx.fillText('INTERSTELLAR SENTINEL',W/2,H-28);
   ctx.restore();
 }
