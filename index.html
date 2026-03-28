@@ -136,29 +136,6 @@ function analyzeAudio() {
   prevBass = bassVal;
 }
 
-// --- Sprite Sheet ---
-const BASE = window.location.hostname === 'ugdev-chane.github.io'
-  ? 'media/'
-  : 'https://raw.githubusercontent.com/UGDev-Chane/ISVisualizer/main/media/';
-
-const demonSprite = new Image();
-demonSprite.crossOrigin = 'anonymous';
-demonSprite.src = BASE + 'LesserDemon_512x512.png';
-let demonSpriteReady = false;
-demonSprite.onload = () => demonSpriteReady = true;
-demonSprite.onerror = () => console.warn('Demon sprite not found - using fallback');
-
-const soulBitSprite = new Image();
-soulBitSprite.crossOrigin = 'anonymous';
-soulBitSprite.src = BASE + '0StarCollectionBits_BR.png';
-let soulBitReady = false;
-soulBitSprite.onload = () => soulBitReady = true;
-soulBitSprite.onerror = () => console.warn('Soul bit sprite not found - using fallback');
-
-const SPRITE_COLS = 2, SPRITE_ROWS = 2, SPRITE_FRAMES = 4;
-const FRAME_W = 256, FRAME_H = 256;
-const SOUL_COLS = 4, SOUL_ROWS = 4, SOUL_FRAMES = 16;
-
 // --- State ---
 let score = 0, superActive = false, superTimer = 0;
 const SUPER_DUR = 5000;
@@ -175,62 +152,27 @@ class PowerUp {
   constructor() {
     const m = 90;
     this.x = rand(m, W-m); this.y = rand(m, H-m);
-    this.r = 28; this.phase = rand(0, Math.PI*2);
+    this.r = 22; this.angle = 0; this.phase = rand(0, Math.PI*2);
     this.color = PURPLES[randInt(0, PURPLES.length)];
     this.alive = true; this.age = 0; this.lifespan = 7000;
-    this.frame = 0; this.frameTick = 0; this.frameSpeed = 4;
-    // Soul bit sprite frame size - detect from image once loaded
-    this.glowPulse = rand(0, Math.PI*2);
   }
-  update(dt) {
-    this.age += dt; this.phase += 0.08; this.glowPulse += 0.06;
-    if (this.age > this.lifespan) this.alive = false;
-    this.frameTick++;
-    if (this.frameTick >= this.frameSpeed) {
-      this.frame = (this.frame + 1) % SOUL_FRAMES;
-      this.frameTick = 0;
-    }
-  }
+  update(dt) { this.age+=dt; this.angle+=0.04; this.phase+=0.08; if(this.age>this.lifespan) this.alive=false; }
   draw() {
+    const pulse = Math.sin(this.phase)*4 + bassVal*10;
+    const r = this.r + pulse;
     const alpha = this.age > this.lifespan-900 ? Math.max(0,(this.lifespan-this.age)/900) : 1;
-    const pulse = 1 + Math.sin(this.glowPulse) * 0.2 + bassVal * 0.4;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-
-    // Outer glow rings
-    const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 3 * pulse);
-    g.addColorStop(0, this.color + 'aa');
-    g.addColorStop(0.4, this.color + '44');
-    g.addColorStop(1, this.color + '00');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(this.x, this.y, this.r * 3 * pulse, 0, Math.PI*2); ctx.fill();
-
-    if (soulBitReady) {
-      const fw = soulBitSprite.width / SOUL_COLS;
-      const fh = soulBitSprite.height / SOUL_ROWS;
-      const col = this.frame % SOUL_COLS;
-      const row = Math.floor(this.frame / SOUL_COLS);
-      const drawSize = 80 * pulse;
-      ctx.shadowColor = this.color;
-      ctx.shadowBlur = 24;
-      ctx.drawImage(soulBitSprite, col*fw, row*fh, fw, fh,
-        this.x - drawSize/2, this.y - drawSize/2, drawSize, drawSize);
-    } else {
-      // Fallback star shape
-      ctx.strokeStyle = this.color; ctx.lineWidth = 2;
-      ctx.shadowColor = this.color; ctx.shadowBlur = 16;
-      ctx.translate(this.x, this.y); ctx.rotate(this.phase);
-      ctx.beginPath();
-      for (let i = 0; i < 8; i++) {
-        const a = (i/8)*Math.PI*2, len = i%2===0 ? this.r : this.r*0.45;
-        i===0 ? ctx.moveTo(Math.cos(a)*len, Math.sin(a)*len) : ctx.lineTo(Math.cos(a)*len, Math.sin(a)*len);
-      }
-      ctx.closePath(); ctx.stroke();
-      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
-    }
+    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(this.x,this.y); ctx.rotate(this.angle);
+    const g = ctx.createRadialGradient(0,0,0,0,0,r*2.5);
+    g.addColorStop(0,this.color+'bb'); g.addColorStop(1,this.color+'00');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r*2.5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=this.color; ctx.lineWidth=2; ctx.shadowColor=this.color; ctx.shadowBlur=16;
+    ctx.beginPath();
+    for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2,len=i%2===0?r:r*0.45;i===0?ctx.moveTo(Math.cos(a)*len,Math.sin(a)*len):ctx.lineTo(Math.cos(a)*len,Math.sin(a)*len);}
+    ctx.closePath(); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  hit(mx,my){return Math.hypot(mx-this.x,my-this.y)<this.r+20;}
+  hit(mx,my){return Math.hypot(mx-this.x,my-this.y)<this.r+16;}
 }
 
 class Particle {
@@ -270,67 +212,26 @@ class Beam {
 }
 
 class Demon {
-  constructor() {
-    this.fromLeft = randInt(0, 2) === 0;
-    this.x = this.fromLeft ? rand(-80, -40) : rand(W + 40, W + 80);
-    this.y = rand(H * 0.1, H * 0.9);
-    this.dir = this.fromLeft ? 1 : -1;
-    this.spd = rand(0.5, 1.5);
-    this.scale = rand(0.5, 1.1);
-    this.life = 1; this.decay = rand(0.003, 0.007);
-    this.wobble = rand(0, Math.PI * 2);
-    this.frame = 0; this.frameTick = 0;
-    this.frameSpeed = randInt(6, 10); // ticks per frame
-    this.alive = true;
+  constructor(){
+    this.x=randInt(0,2)===0?rand(-60,-20):rand(W+20,W+60);
+    this.y=rand(H*0.1,H*0.9);this.dir=this.x<0?1:-1;
+    this.spd=rand(0.4,1.4);this.scale=rand(0.5,1.4);
+    this.color=DEMON_COLS[randInt(0,DEMON_COLS.length)];
+    this.life=1;this.decay=rand(0.003,0.007);this.wobble=rand(0,Math.PI*2);
+    this.pts=Array.from({length:randInt(6,10)},(_,i)=>{const a=(i/8)*Math.PI*2,r=rand(18,45);return[Math.cos(a)*r,Math.sin(a)*r];});
+    this.alive=true;
   }
-  update() {
-    this.x += this.dir * (this.spd + bassVal * 2);
-    this.wobble += 0.03;
-    this.life -= this.decay;
-    // Animate frames
-    this.frameTick++;
-    if (this.frameTick >= this.frameSpeed) {
-      this.frame = (this.frame + 1) % SPRITE_FRAMES;
-      this.frameTick = 0;
-    }
-    if (this.life <= 0 || this.x < -200 || this.x > W + 200) this.alive = false;
-  }
-  draw() {
-    if (!demonSpriteReady) {
-      // Fallback: colored shape so we can verify spawning
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, this.life) * 0.85;
-      ctx.translate(this.x, this.y + Math.sin(this.wobble) * 8);
-      if (this.fromLeft) ctx.scale(-1, 1);
-      ctx.fillStyle = '#ff2040';
-      ctx.shadowColor = '#ff2040';
-      ctx.shadowBlur = 20;
-      ctx.beginPath();
-      ctx.moveTo(0, -30); ctx.lineTo(20, 20); ctx.lineTo(-20, 20);
-      ctx.closePath(); ctx.fill();
-      ctx.restore();
-      return;
-    }
-    const col = this.frame % SPRITE_COLS;
-    const row = Math.floor(this.frame / SPRITE_COLS);
-    const sx = col * FRAME_W, sy = row * FRAME_H;
-    const drawW = FRAME_W * this.scale, drawH = FRAME_H * this.scale;
-    const wobbleY = Math.sin(this.wobble) * 6 * (1 + midVal);
-
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, this.life) * 0.92;
-    ctx.translate(this.x, this.y + wobbleY);
-
-    // Flip left-coming demons so they face center (right)
-    if (this.fromLeft) {
-      ctx.scale(-1, 1);
-    }
-
-    ctx.drawImage(
-      demonSprite,
-      sx, sy, FRAME_W, FRAME_H,
-      -drawW / 2, -drawH / 2, drawW, drawH
-    );
+  update(){this.x+=this.dir*(this.spd+bassVal*2);this.wobble+=0.03;this.life-=this.decay;if(this.life<=0||this.x<-200||this.x>W+200)this.alive=false;}
+  draw(){
+    ctx.save();ctx.globalAlpha=Math.max(0,this.life)*0.75;
+    ctx.translate(this.x,this.y+Math.sin(this.wobble)*8*(1+midVal));ctx.scale(this.scale,this.scale);
+    ctx.strokeStyle=this.color;ctx.lineWidth=1.5;ctx.shadowColor=this.color;ctx.shadowBlur=20;
+    ctx.fillStyle=this.color+'22';
+    ctx.beginPath();this.pts.forEach(([px,py],i)=>i===0?ctx.moveTo(px,py):ctx.lineTo(px,py));
+    ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='#fff';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(-8,-6,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(8,-6,3,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
 }
@@ -449,9 +350,9 @@ function loop(now){
   // Power-up spawn
   if(now-lastPowerUpTime>nextInterval){powerUps.push(new PowerUp());lastPowerUpTime=now;nextInterval=rand(2500,5000);}
 
-  // Demon spawn — always spawn on timer, boost rate with mid energy
-  if (superActive && tick % 16 === 0) demons.push(new Demon());
-  else if (!superActive && tick % 45 === 0) demons.push(new Demon());
+  // Demon spawn — mid energy driven
+  if(superActive&&tick%16===0) demons.push(new Demon());
+  else if(!superActive&&midVal>0.3&&tick%40===0) demons.push(new Demon());
 
   // Extra super beams on high energy
   if(superActive&&highVal>0.4&&tick%6===0) beams.push(new Beam(W/2,H/2,true));
