@@ -53,7 +53,7 @@
 <div id="wrap">
   <canvas id="c"></canvas>
 
-  <audio id="audio" loop crossorigin="anonymous">
+  <audio id="audio" loop>
     <source src="media/Interstellar_Sentinel_Soundtrack_14QuestingRealms.mp3" type="audio/mpeg">
   </audio>
 
@@ -88,6 +88,8 @@ const audio = document.getElementById('audio');
 
 function initAudio() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Only set crossOrigin for Web Audio API when needed (not on same-origin GitHub Pages)
+  if (!isGitHubPages) audio.crossOrigin = 'anonymous';
   const src = audioCtx.createMediaElementSource(audio);
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 2048;
@@ -137,23 +139,24 @@ function analyzeAudio() {
 }
 
 // --- Sprite Sheet ---
-const BASE = window.location.hostname === 'ugdev-chane.github.io'
+const isGitHubPages = window.location.hostname === 'ugdev-chane.github.io';
+const BASE = isGitHubPages
   ? 'media/'
   : 'https://raw.githubusercontent.com/UGDev-Chane/ISVisualizer/main/media/';
 
 const demonSprite = new Image();
-demonSprite.crossOrigin = 'anonymous';
+if (!isGitHubPages) demonSprite.crossOrigin = 'anonymous';
 demonSprite.src = BASE + 'LesserDemon_512x512.png';
 let demonSpriteReady = false;
 demonSprite.onload = () => demonSpriteReady = true;
-demonSprite.onerror = () => console.warn('Demon sprite not found - using fallback');
+demonSprite.onerror = () => console.warn('Demon sprite not found');
 
 const soulBitSprite = new Image();
-soulBitSprite.crossOrigin = 'anonymous';
+if (!isGitHubPages) soulBitSprite.crossOrigin = 'anonymous';
 soulBitSprite.src = BASE + '0StarCollectionBits_BR.png';
 let soulBitReady = false;
 soulBitSprite.onload = () => soulBitReady = true;
-soulBitSprite.onerror = () => console.warn('Soul bit sprite not found - using fallback');
+soulBitSprite.onerror = () => console.warn('Soul bit sprite not found');
 
 const SPRITE_COLS = 2, SPRITE_ROWS = 2, SPRITE_FRAMES = 4;
 const FRAME_W = 256, FRAME_H = 256;
